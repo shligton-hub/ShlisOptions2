@@ -11,7 +11,7 @@ export function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function daysToExpiration(expirationDate: string, from = new Date("2026-06-03T12:00:00-04:00")) {
+export function daysToExpiration(expirationDate: string, from = new Date()) {
   return Math.max(0, Math.ceil((new Date(expirationDate).getTime() - from.getTime()) / MS_PER_DAY));
 }
 
