@@ -5,6 +5,9 @@ import { Metric, Panel, ProgressBar, ScoreBadge, Section } from "@/components/ui
 import { calculateOptionMath } from "@/lib/options-math";
 import { getPositions, getScoredOptions, getWatchlist } from "@/lib/market-data";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function Home() {
   const [options, watchlist, positions] = await Promise.all([getScoredOptions(), getWatchlist(), getPositions()]);
   const best = options[0];
