@@ -1,6 +1,16 @@
 import { enrichOption } from "./options-math";
 import type { OptionContract, Position, WatchlistItem } from "./types";
 
+const DEFAULT_SYMBOLS = ["NVDA", "AMZN", "SOFI", "DIS", "TSLA", "GOOGL"];
+const COMPANY_NAMES: Record<string, string> = {
+  AMZN: "Amazon",
+  DIS: "Disney",
+  GOOGL: "Alphabet",
+  NVDA: "NVIDIA",
+  SOFI: "SoFi Technologies",
+  TSLA: "Tesla"
+};
+
 export interface MarketDataProvider {
   getLongDatedCalls(): Promise<OptionContract[]>;
 }
@@ -11,7 +21,152 @@ export class MockMarketDataProvider implements MarketDataProvider {
   }
 }
 
-export const marketDataProvider: MarketDataProvider = new MockMarketDataProvider();
+type TradierQuote = {
+  symbol: string;
+  description?: string;
+  last?: number;
+  bid?: number;
+  ask?: number;
+  close?: number;
+};
+
+type TradierOption = {
+  symbol: string;
+  underlying: string;
+  option_type: string;
+  expiration_date: string;
+  strike: number;
+  last?: number;
+  bid?: number;
+  ask?: number;
+  volume?: number;
+  open_interest?: number;
+  greeks?: {
+    delta?: number;
+    mid_iv?: number;
+    smv_vol?: number;
+  };
+};
+
+export class TradierMarketDataProvider implements MarketDataProvider {
+  private readonly apiKey: string;
+  private readonly baseUrl: string;
+  private readonly symbols: string[];
+
+  constructor({
+    apiKey = process.env.TRADIER_API_KEY ?? "",
+    baseUrl = process.env.TRADIER_BASE_URL ?? "https://api.tradier.com/v1",
+    symbols = getConfiguredSymbols()
+  } = {}) {
+    this.apiKey = apiKey;
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+    this.symbols = symbols;
+  }
+
+  async getLongDatedCalls() {
+    if (!this.apiKey) {
+      throw new Error("TRADIER_API_KEY is required for the Tradier market data provider.");
+    }
+
+    const quotes = await this.getQuotes(this.symbols);
+    const contracts = await Promise.all(
+      this.symbols.map(async (symbol) => {
+        const quote = quotes.get(symbol);
+        if (!quote) {
+          return [];
+        }
+
+        const expirations = await this.getLongDatedExpirations(symbol);
+        const chains = await Promise.all(expirations.slice(0, 2).map((expiration) => this.getOptionChain(symbol, expiration)));
+        return chains
+          .flat()
+          .filter((option) => option.option_type === "call")
+          .filter((option) => option.bid || option.ask || option.last)
+          .map((option) => this.toContract(option, quote))
+          .filter((contract) => contract.premium > 0)
+          .sort((a, b) => Math.abs(a.delta - 0.5) - Math.abs(b.delta - 0.5))
+          .slice(0, 2);
+      })
+    );
+
+    const flattened = contracts.flat();
+    return flattened.length > 0 ? flattened : mockContracts;
+  }
+
+  private async getQuotes(symbols: string[]) {
+    const response = await this.request<{ quotes?: { quote?: TradierQuote | TradierQuote[] } }>(
+      `/markets/quotes?symbols=${encodeURIComponent(symbols.join(","))}`
+    );
+    const quotes = asArray(response.quotes?.quote);
+    return new Map(quotes.map((quote) => [quote.symbol, quote]));
+  }
+
+  private async getLongDatedExpirations(symbol: string) {
+    const response = await this.request<{ expirations?: { date?: string | string[] } }>(
+      `/markets/options/expirations?symbol=${encodeURIComponent(symbol)}&includeAllRoots=true&strikes=false`
+    );
+    const dates = asArray(response.expirations?.date);
+    const now = new Date();
+    return dates
+      .filter((date) => {
+        const days = (new Date(`${date}T16:00:00-04:00`).getTime() - now.getTime()) / 86_400_000;
+        return days >= 180 && days <= 760;
+      })
+      .sort();
+  }
+
+  private async getOptionChain(symbol: string, expiration: string) {
+    const response = await this.request<{ options?: { option?: TradierOption | TradierOption[] } }>(
+      `/markets/options/chains?symbol=${encodeURIComponent(symbol)}&expiration=${encodeURIComponent(expiration)}&greeks=true`
+    );
+    return asArray(response.options?.option);
+  }
+
+  private async request<T>(path: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${this.apiKey}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tradier request failed with ${response.status} ${response.statusText}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  private toContract(option: TradierOption, quote: TradierQuote): OptionContract {
+    const stockPrice = quote.last ?? quote.close ?? quote.bid ?? quote.ask ?? 0;
+    const bid = option.bid ?? 0;
+    const ask = option.ask ?? 0;
+    const premium = bid > 0 && ask > 0 ? (bid + ask) / 2 : option.last ?? ask ?? bid;
+    const targetPrice = getTargetPrice(option.underlying, stockPrice);
+
+    return {
+      id: option.symbol,
+      underlying: option.underlying,
+      companyName: quote.description || COMPANY_NAMES[option.underlying] || option.underlying,
+      stockPrice,
+      strike: option.strike,
+      premium,
+      expirationDate: option.expiration_date,
+      delta: option.greeks?.delta ?? 0,
+      openInterest: option.open_interest ?? 0,
+      volume: option.volume ?? 0,
+      bid,
+      ask,
+      impliedVolatility: option.greeks?.mid_iv ?? option.greeks?.smv_vol ?? 0,
+      targetPrice,
+      analystRating: "Market data",
+      thesis: "Live Tradier quote and options chain data. Target is configurable until analyst APIs are connected."
+    };
+  }
+}
+
+export const marketDataProvider: MarketDataProvider = createMarketDataProvider();
 
 export async function getScoredOptions() {
   const contracts = await marketDataProvider.getLongDatedCalls();
@@ -73,6 +228,34 @@ export async function getPositions(): Promise<Position[]> {
       targetPrice: 22
     }
   ];
+}
+
+function createMarketDataProvider(): MarketDataProvider {
+  if ((process.env.MARKET_DATA_PROVIDER ?? "").toLowerCase() === "tradier" || process.env.TRADIER_API_KEY) {
+    return new TradierMarketDataProvider();
+  }
+
+  return new MockMarketDataProvider();
+}
+
+function getConfiguredSymbols() {
+  return (process.env.WATCHLIST_SYMBOLS ?? DEFAULT_SYMBOLS.join(","))
+    .split(",")
+    .map((symbol) => symbol.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function getTargetPrice(symbol: string, stockPrice: number) {
+  const configured = Number(process.env[`TARGET_${symbol}`]);
+  return Number.isFinite(configured) && configured > 0 ? configured : stockPrice * 1.25;
+}
+
+function asArray<T>(value: T | T[] | undefined): T[] {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
 }
 
 const mockContracts: OptionContract[] = [
