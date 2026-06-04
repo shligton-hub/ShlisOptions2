@@ -3,13 +3,14 @@ import { currency, number, percent } from "@/components/format";
 import { AppShell } from "@/components/shell";
 import { Metric, Panel, ProgressBar, ScoreBadge, Section } from "@/components/ui";
 import { calculateOptionMath } from "@/lib/options-math";
-import { getPositions, getScoredOptions, getWatchlist } from "@/lib/market-data";
+import { createWatchlistFromOptions, getPositions, getScoredOptions } from "@/lib/market-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function Home() {
-  const [options, watchlist, positions] = await Promise.all([getScoredOptions(), getWatchlist(), getPositions()]);
+  const [options, positions] = await Promise.all([getScoredOptions(), getPositions()]);
+  const watchlist = createWatchlistFromOptions(options);
   const best = options[0];
   const totalPremium = positions.reduce((sum, position) => sum + position.entryPremium * position.contracts * 100, 0);
   const markValue = positions.reduce((sum, position) => sum + position.currentPremium * position.contracts * 100, 0);
