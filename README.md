@@ -45,3 +45,28 @@ Set `DATABASE_URL` in `.env`, then run:
 ```bash
 pnpm prisma:push
 ```
+
+## Live Market Data
+
+The app uses mock data by default. To use live stock quotes and options chains, create a Tradier API token and add it to `.env`:
+
+```bash
+MARKET_DATA_PROVIDER="tradier"
+TRADIER_API_KEY="your_tradier_token"
+TRADIER_BASE_URL="https://api.tradier.com/v1"
+WATCHLIST_SYMBOLS="NVDA,AMZN,SOFI,DIS,TSLA,GOOGL"
+```
+
+Then restart the app:
+
+```bash
+pnpm build
+pnpm start
+```
+
+Optional target overrides can be added per symbol:
+
+```bash
+TARGET_NVDA="190"
+TARGET_AMZN="285"
+```
