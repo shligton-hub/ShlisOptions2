@@ -1,5 +1,5 @@
 import { enrichOption } from "./options-math";
-import type { OptionContract, Position, WatchlistItem } from "./types";
+import type { ScoredOption, OptionContract, Position, WatchlistItem } from "./types";
 
 const DEFAULT_SYMBOLS = ["NVDA", "AMZN", "SOFI", "DIS", "TSLA", "GOOGL"];
 const COMPANY_NAMES: Record<string, string> = {
@@ -169,12 +169,24 @@ export class TradierMarketDataProvider implements MarketDataProvider {
 export const marketDataProvider: MarketDataProvider = createMarketDataProvider();
 
 export async function getScoredOptions() {
-  const contracts = await marketDataProvider.getLongDatedCalls();
+  let contracts: OptionContract[];
+
+  try {
+    contracts = await marketDataProvider.getLongDatedCalls();
+  } catch (error) {
+    console.error("Market data provider failed. Falling back to mock data.", error);
+    contracts = mockContracts;
+  }
+
   return contracts.map(enrichOption).sort((a, b) => b.score.total - a.score.total);
 }
 
 export async function getWatchlist(): Promise<WatchlistItem[]> {
   const options = await getScoredOptions();
+  return createWatchlistFromOptions(options);
+}
+
+export function createWatchlistFromOptions(options: ScoredOption[]): WatchlistItem[] {
   return ["NVDA", "AMZN", "SOFI", "DIS"].map((symbol) => {
     const best = options.find((option) => option.underlying === symbol) ?? options[0];
     return {
