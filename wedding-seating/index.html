@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111111" />
+  <title>Everlasting Estime | Find Your Seat</title>
+  <style>
+    :root{--black:#111111;--ivory:#ffffff;--gold:#111111;--muted:#5f5f5f;--white:#ffffff;}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;color:var(--black);font-family:Arial,Helvetica,sans-serif;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:24px;}
+    .card{width:min(100%,520px);background:#ffffff;border:1px solid #111111;box-shadow:0 18px 50px rgba(0,0,0,.08);border-radius:24px;padding:34px 24px 28px;text-align:center;}
+    h1{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:.02em;margin:0;font-size:clamp(34px,8vw,48px);}
+    .infinity{display:inline-block;color:#111111;margin:0 6px;font-size:.9em;}
+    .subtitle{color:var(--muted);margin:10px 0 28px;font-size:15px;}
+    .search-wrap{display:flex;gap:10px;margin-top:8px;}
+    input{width:100%;border:1px solid #bdbdbd;background:white;border-radius:14px;padding:15px 16px;font-size:16px;outline:none;}
+    input:focus{border-color:#111111;box-shadow:0 0 0 3px rgba(0,0,0,.08)}
+    button{border:none;border-radius:14px;background:var(--black);color:white;padding:0 18px;font-size:14px;font-weight:700;cursor:pointer;}
+    .hint{margin:12px 0 0;font-size:12px;color:#777777;}
+    .result{display:none;margin-top:28px;padding:26px 18px;border-radius:18px;background:var(--black);color:white;animation:fade .22s ease-out;}
+    .result.show{display:block}.welcome{font-family:Georgia,"Times New Roman",serif;font-size:23px;margin-bottom:6px;}.small{font-size:13px;color:#d9d9d9;letter-spacing:.08em;text-transform:uppercase}.table{font-family:Georgia,"Times New Roman",serif;font-size:54px;line-height:1;margin:11px 0 3px;color:#ffffff;}
+    .error{display:none;margin-top:22px;padding:16px;background:#f2f2f2;color:#111111;border-radius:14px;font-size:14px;}.error.show{display:block}.footer{margin-top:28px;font-size:11px;color:#777777;letter-spacing:.16em;text-transform:uppercase;}
+    @keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    @media(max-width:420px){body{padding:14px}.card{padding:30px 18px 24px}.search-wrap{flex-direction:column}button{padding:14px}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Everlasting <span class="infinity">∞</span> Estime</h1>
+    <div class="subtitle">Find your seat and join the celebration.</div>
+    <div class="search-wrap">
+      <input id="nameInput" autocomplete="name" placeholder="Enter your first or last name" aria-label="Guest name" />
+      <button id="searchBtn">Find Seat</button>
+    </div>
+    <div class="hint">Try “John Doe” or “Jane Smith” for this demo.</div>
+    <section id="result" class="result" aria-live="polite">
+      <div id="welcome" class="welcome"></div>
+      <div class="small">Your table is</div>
+      <div id="table" class="table"></div>
+    </section>
+    <div id="error" class="error" aria-live="polite">We couldn’t find that name. Please check the spelling or see the seating attendant.</div>
+    <div class="footer">Scan • Search • Celebrate</div>
+  </main>
+  <script>
+    const guests=[{first:"John",last:"Doe",table:"3"},{first:"Jane",last:"Smith",table:"6"}];
+    const normalize=s=>s.trim().toLowerCase().replace(/\s+/g," ");
+    function findGuest(query){const q=normalize(query);if(!q)return null;return guests.find(g=>{const first=normalize(g.first),last=normalize(g.last),full=`${first} ${last}`;return q===first||q===last||q===full;});}
+    function search(){const input=document.getElementById("nameInput"),result=document.getElementById("result"),error=document.getElementById("error"),guest=findGuest(input.value);result.classList.remove("show");error.classList.remove("show");if(guest){document.getElementById("welcome").textContent=`Welcome, ${guest.first}!`;document.getElementById("table").textContent=`TABLE ${guest.table}`;result.classList.add("show");}else{error.classList.add("show");}}
+    document.getElementById("searchBtn").addEventListener("click",search);document.getElementById("nameInput").addEventListener("keydown",e=>{if(e.key==="Enter")search();});
+  </script>
+</body>
+</html>
