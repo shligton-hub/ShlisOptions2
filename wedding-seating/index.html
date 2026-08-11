@@ -33,7 +33,7 @@
       <input id="nameInput" autocomplete="name" placeholder="Enter your first or last name" aria-label="Guest name" />
       <button id="searchBtn">Find Seat</button>
     </div>
-    <div class="hint">Try “John Doe” or “Jane Smith” for this demo.</div>
+    <div class="hint">Enter your first name, last name, or full name.</div>
     <section id="result" class="result" aria-live="polite">
       <div id="welcome" class="welcome"></div>
       <div class="small">Your table is</div>
@@ -42,8 +42,9 @@
     <div id="error" class="error" aria-live="polite">We couldn’t find that name. Please check the spelling or see the seating attendant.</div>
     <div class="footer">Scan • Search • Celebrate</div>
   </main>
+  <script src="guests.js"></script>
   <script>
-    const guests=[{first:"John",last:"Doe",table:"3"},{first:"Jane",last:"Smith",table:"6"}];
+    const guests = Array.isArray(window.SEATING_GUESTS) ? window.SEATING_GUESTS : [];
     const normalize=s=>s.trim().toLowerCase().replace(/\s+/g," ");
     function findGuest(query){const q=normalize(query);if(!q)return null;return guests.find(g=>{const first=normalize(g.first),last=normalize(g.last),full=`${first} ${last}`;return q===first||q===last||q===full;});}
     function search(){const input=document.getElementById("nameInput"),result=document.getElementById("result"),error=document.getElementById("error"),guest=findGuest(input.value);result.classList.remove("show");error.classList.remove("show");if(guest){document.getElementById("welcome").textContent=`Welcome, ${guest.first}!`;document.getElementById("table").textContent=`TABLE ${guest.table}`;result.classList.add("show");}else{error.classList.add("show");}}
